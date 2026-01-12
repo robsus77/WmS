@@ -1,0 +1,71 @@
+import pandas as pd
+from datetime import datetime
+
+class WMS:
+    def __init__(self):
+        # Inicjalizacja bazy danych w pamięci (można zamienić na plik CSV)
+        self.inventory = pd.DataFrame(columns=['SKU', 'Nazwa', 'Ilość', 'Lokalizacja', 'Ostatnia_Aktualizacja'])
+        self.logs = []
+
+    def dodaj_produkt(self, sku, nazwa, ilosc, lokalizacja):
+        """Przyjęcie towaru na magazyn."""
+        if sku in self.inventory['SKU'].values:
+            idx = self.inventory.index[self.inventory['SKU'] == sku][0]
+            self.inventory.at[idx, 'Ilość'] += ilosc
+            self.inventory.at[idx, 'Ostatnia_Aktualizacja'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            nowy_produkt = {
+                'SKU': sku,
+                'Nazwa': nazwa,
+                'Ilość': ilosc,
+                'Lokalizacja': lokalizacja,
+                'Ostatnia_Aktualizacja': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            self.inventory = pd.concat([self.inventory, pd.DataFrame([nowy_produkt])], ignore_index=True)
+        
+        self._log_akcji(f"PRZYJĘCIE: SKU {sku}, Ilość: {ilosc}")
+        print(f"Pomyślnie przyjęto: {nazwa} ({ilosc} szt.)")
+
+    def wydaj_produkt(self, sku, ilosc):
+        """Wydanie towaru z magazynu."""
+        if sku in self.inventory['SKU'].values:
+            idx = self.inventory.index[self.inventory['SKU'] == sku][0]
+            obecny_stan = self.inventory.at[idx, 'Ilość']
+            
+            if obecny_stan >= ilosc:
+                self.inventory.at[idx, 'Ilość'] -= ilosc
+                self.inventory.at[idx, 'Ostatnia_Aktualizacja'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self._log_akcji(f"WYDANIE: SKU {sku}, Ilość: {ilosc}")
+                print(f"Wydano {ilosc} szt. produktu o SKU {sku}")
+            else:
+                print(f"BŁĄD: Niewystarczająca ilość towaru na stanie (Dostępne: {obecny_stan})")
+        else:
+            print("BŁĄD: Nie znaleziono produktu o podanym SKU.")
+
+    def raport_stanow(self):
+        """Wyświetla aktualny stan magazynowy."""
+        print("\n--- AKTUALNY STAN MAGAZYNOWY ---")
+        if self.inventory.empty:
+            print("Magazyn jest pusty.")
+        else:
+            print(self.inventory.to_string(index=False))
+        print("--------------------------------\n")
+
+    def _log_akcji(self, komunikat):
+        self.logs.append(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {komunikat}")
+
+# --- PRZYKŁAD UŻYCIA ---
+magazyn = WMS()
+
+# 1. Dodajemy towary
+magazyn.dodaj_produkt("SKU001", "Monitor Dell 24", 10, "A-12-01")
+magazyn.dodaj_produkt("SKU002", "Klawiatura Mechaniczna", 25, "B-05-02")
+
+# 2. Sprawdzamy stan
+magazyn.raport_stanow()
+
+# 3. Wydajemy towar
+magazyn.wydaj_produkt("SKU001", 3)
+
+# 4. Sprawdzamy stan po wydaniu
+magazyn.raport_stanow()
