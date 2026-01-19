@@ -9,8 +9,8 @@ st.set_page_config(page_title="Menedżer Produktów Supabase", layout="centered"
 # Używamy st.cache_resource, aby nie łączyć się przy każdym kliknięciu
 @st.cache_resource
 def init_connection():
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
+    url = "https://phascjskfvzywxjvigcb.supabase.co"
+    key = "sb_publishable_OErFDH4EJkV3W18TW_hp7Q_UGPLJ_1W"
     return create_client(url, key)
 
 supabase = init_connection()
