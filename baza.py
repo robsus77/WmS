@@ -7,8 +7,8 @@ import pandas as pd
 def init_connection():
     try:
         # Streamlit automatycznie szuka tych danych w Secrets
-        url = st.secrets["supabase"]["url"]
-        key = st.secrets["supabase"]["key"]
+        url = "https://phascjskfvzywxjvigcb.supabase.co"
+        key = "sb_publishable_OErFDH4EJkV3W18TW_hp7Q_UGPLJ_1W"
         return create_client(url, key)
     except Exception:
         st.error("❌ Błąd: Nie znaleziono kluczy API w Secrets!")
