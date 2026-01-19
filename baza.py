@@ -2,102 +2,82 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-# 1. Połączenie z bazą (Pobiera dane z .streamlit/secrets.toml)
+# 1. Połączenie
 @st.cache_resource
 def init_connection():
     try:
-        url = "https://phascjskfvzywxjvigcb.supabase.co"
-        key = "sb_publishable_OErFDH4EJkV3W18TW_hp7Q_UGPLJ_1W"
-        return create_client(url, key)
+        return create_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
     except Exception:
-        st.error("❌ Błąd: Nie znaleziono kluczy API. Dodaj je do .streamlit/secrets.toml")
+        st.error("❌ Błąd kluczy w Secrets!")
         st.stop()
 
 supabase = init_connection()
 
-st.title("📦 System Zarządzania Baza Danych")
+st.title("📦 System Zarządzania")
 
-# Menu w zakładkach
-tab1, tab2 = st.tabs(["📂 Kategorie", "🛒 Produkty"])
+t1, t2 = st.tabs(["📂 Kategorie", "🛒 Produkty"])
 
-# --- SEKCJA: KATEGORIE ---
-with tab1:
-    st.header("Dodaj nową kategorię")
-    with st.form("form_kat", clear_on_submit=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            n_kat = st.text_input("Nazwa kategorii")
-        with col2:
-            l_kat = st.number_input("Liczba (kategorie)", min_value=0.0)
-        with col3:
-            k_kat = st.number_input("Kwota (kategorie)", min_value=0.0)
+# --- KATEGORIE ---
+with t1:
+    st.header("Nowa Kategoria")
+    with st.form("f_kat", clear_on_submit=True):
+        nazwa = st.text_input("Nazwa")
+        col1, col2 = st.columns(2)
+        liczba = col1.number_input("Liczba", min_value=0.0)
+        kwota = col2.number_input("Kwota", min_value=0.0)
         
-        submit_kat = st.form_submit_button("Zapisz Kategorię")
-
-    if submit_kat and n_kat:
-        try:
-            # Wstawianie do tabeli 'kategorie'
-            supabase.table("kategorie").insert({
-                "nazwa": n_kat, 
-                "liczba": l_kat, 
-                "kwota": k_kat
-            }).execute()
-            st.success(f"Dodano kategorię: {n_kat}")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Błąd bazy: {e}")
-
-    st.divider()
-    st.subheader("Aktualne kategorie")
-    res_kat = supabase.table("kategorie").select("*").execute()
-    if res_kat.data:
-        st.dataframe(pd.DataFrame(res_kat.data), use_container_width=True)
-
-# --- SEKCJA: PRODUKTY ---
-with tab2:
-    st.header("Dodaj nowy produkt")
-    
-    # Pobieramy listę kategorii, żeby móc przypisać produkt do kategorii
-    res_kat_list = supabase.table("kategorie").select("id, nazwa").execute()
-    lista_kategorii = {item['nazwa']: item['id'] for item in res_kat_list.data} if res_kat_list.data else {}
-
-    if not lista_kategorii:
-        st.warning("⚠️ Najpierw musisz dodać chociaż jedną kategorię!")
-    else:
-        with st.form("form_prod", clear_on_submit=True):
-            p_nazwa = st.text_input("Nazwa produktu")
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                p_kat_select = st.selectbox("Wybierz kategorię", options=list(lista_kategorii.keys()))
-            with c2:
-                p_liczba = st.number_input("Ilość produktu", min_value=0.0)
-            with c3:
-                p_kwota = st.number_input("Cena produktu", min_value=0.0)
-            
-            submit_prod = st.form_submit_button("Zapisz Produkt")
-
-        if submit_prod and p_nazwa:
-            try:
-                # Wstawianie do tabeli 'Produkty' (Z dużej litery P!)
-                supabase.table("Produkty").insert({
-                    "nazwa": p_nazwa,
-                    "liczba": p_liczba,
-                    "kwota": p_kwota,
-                    "kategoria_id": lista_kategorii[p_kat_select]
+        if st.form_submit_button("Zapisz"):
+            if nazwa:
+                # Wysyłamy TYLKO te trzy pola. Baza SAMA doda ID (bo jest Identity)
+                res = supabase.table("kategorie").insert({
+                    "nazwa": nazwa, 
+                    "liczba": liczba, 
+                    "kwota": kwota
                 }).execute()
-                st.success(f"Dodano produkt: {p_nazwa}")
+                st.success(f"Dodano: {nazwa}")
                 st.rerun()
-            except Exception as e:
-                st.error(f"Błąd bazy: {e}")
 
     st.divider()
-    st.subheader("Aktualne produkty")
-    # Pobieramy produkty i dołączamy nazwę kategorii
-    res_prod = supabase.table("Produkty").select("*, kategorie(nazwa)").execute()
-    if res_prod.data:
-        df_p = pd.DataFrame(res_prod.data)
-        # Uproszczenie wyświetlania nazwy kategorii
-        if 'kategorie' in df_p.columns:
-            df_p['nazwa_kategorii'] = df_p['kategorie'].apply(lambda x: x['nazwa'] if isinstance(x, dict) else "Brak")
-            df_p = df_p.drop(columns=['kategorie'])
-        st.dataframe(df_p, use_container_width=True)
+    # Wyświetlanie listy kategorii
+    data_k = supabase.table("kategorie").select("*").order("id").execute()
+    if data_k.data:
+        st.table(pd.DataFrame(data_k.data)[['id', 'nazwa', 'liczba', 'kwota']])
+
+# --- PRODUKTY ---
+with t2:
+    st.header("Nowy Produkt")
+    
+    # Pobranie kategorii do wyboru
+    kat_data = supabase.table("kategorie").select("id, nazwa").execute()
+    opcje = {k['nazwa']: k['id'] for k in kat_data.data} if kat_data.data else {}
+
+    if not opcje:
+        st.warning("Dodaj najpierw kategorię!")
+    else:
+        with st.form("f_prod", clear_on_submit=True):
+            p_nazwa = st.text_input("Nazwa produktu")
+            p_kat = st.selectbox("Kategoria", options=list(opcje.keys()))
+            c1, c2 = st.columns(2)
+            p_liczba = c1.number_input("Ilość", min_value=0.0)
+            p_kwota = c2.number_input("Cena", min_value=0.0)
+            
+            if st.form_submit_button("Zapisz Produkt"):
+                if p_nazwa:
+                    # Tabela Produkty z DUŻEJ litery zgodnie ze schematem
+                    supabase.table("Produkty").insert({
+                        "nazwa": p_nazwa,
+                        "liczba": p_liczba,
+                        "kwota": p_kwota,
+                        "kategoria_id": opcje[p_kat]
+                    }).execute()
+                    st.success(f"Dodano produkt: {p_nazwa}")
+                    st.rerun()
+
+    st.divider()
+    # Wyświetlanie produktów
+    data_p = supabase.table("Produkty").select("*, kategorie(nazwa)").order("id").execute()
+    if data_p.data:
+        df = pd.DataFrame(data_p.data)
+        if 'kategorie' in df.columns:
+            df['kategoria_nazwa'] = df['kategorie'].apply(lambda x: x['nazwa'] if x else "")
+            st.dataframe(df[['id', 'nazwa', 'liczba', 'kwota', 'kategoria_nazwa']], use_container_width=True)
